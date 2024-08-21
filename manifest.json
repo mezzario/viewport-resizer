@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Viewport Resizer",
+  "version": "1.0",
+  "description": "Resize the viewport horizontally without resizing the browser window",
+  "permissions": [
+    "management"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "resizer.js"
+      ]
+    }
+  ]
+}
