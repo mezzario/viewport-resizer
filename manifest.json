@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "Resize the viewport horizontally without resizing the browser window",
   "permissions": [
-    "management"
+    "activeTab"
   ],
   "content_scripts": [
     {
@@ -15,5 +15,9 @@
         "resizer.js"
       ]
     }
-  ]
+  ],
+  "action": {},
+  "background": {
+    "service_worker": "background.js"
+  }
 }
