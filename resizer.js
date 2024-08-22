@@ -21,8 +21,9 @@ class ViewportResizer {
     this.addCoverElements();
     this.addOverlay();
     this.addWidthLabel();
-    this.addEventListeners();
 
+    this.addEventListeners();
+    this.setupIframeNavigation();
     this.resizeViewport();
   }
 
@@ -136,6 +137,17 @@ class ViewportResizer {
     window.addEventListener('resize', this.handleWindowResize);
   }
 
+  removeEventListeners() {
+    this.resizeHandle.removeEventListener('mousedown', this.startResize);
+    this.resizeHandle.removeEventListener('mouseenter', this.showWidthLabel);
+    this.resizeHandle.removeEventListener('mouseleave', this.hideWidthLabel);
+    this.resizeHandle.removeEventListener('dblclick', this.expandToFullWidth);
+
+    window.removeEventListener('mousemove', this.handleResize);
+    window.removeEventListener('mouseup', this.stopResize);
+    window.removeEventListener('resize', this.handleWindowResize);
+  }
+
   resizeViewport = (width = this.currentWidth) => {
     this.currentWidth = width;
 
@@ -247,9 +259,32 @@ class ViewportResizer {
   };
 
   deactivate() {
-    // Redirect to the current URL of the iframe
+    this.removeEventListeners();
+
+    // Redirect to the current URL of the iframe.
     window.location.href = this.iframe.contentWindow.location.href;
-    window.removeEventListener('resize', this.handleWindowResize);
+    window.location.reload();
+  }
+
+  setupIframeNavigation() {
+    // Handle full page loads.
+    this.iframe.addEventListener('load', () => {
+      this.updateWrapperUrl();
+    });
+
+    // Handle hash changes.
+    this.iframe.contentWindow.addEventListener('hashchange', () => {
+      this.updateWrapperUrl();
+    });
+  }
+
+  updateWrapperUrl() {
+    try {
+      const iframeUrl = this.iframe.contentWindow.location.href;
+      if (window.location.href !== iframeUrl) {
+        history.replaceState(null, '', iframeUrl);
+      }
+    } catch (e) {}
   }
 }
 
