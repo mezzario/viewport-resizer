@@ -121,6 +121,10 @@ class ViewportResizer {
     this.widthLabelEl.style.fontFamily = 'monospace';
     this.widthLabelEl.style.display = 'none';
     this.widthLabelEl.style.zIndex = '10001';
+    this.widthLabelEl.style.userSelect = 'none';
+    this.widthLabelEl.style.webkitUserSelect = 'none';
+    this.widthLabelEl.style.msUserSelect = 'none';
+
     document.documentElement.appendChild(this.widthLabelEl);
   }
 
@@ -230,10 +234,15 @@ class ViewportResizer {
 
   getStoredWidth() {
     const storedWidthStr = localStorage.getItem(this.getStorageKey('width'));
-    const storedWidth = storedWidthStr
+    let storedWidth = storedWidthStr
       ? parseInt(storedWidthStr)
       : window.innerWidth;
-    return isNaN(storedWidth) ? window.innerWidth : storedWidth;
+    storedWidth = isNaN(storedWidth) ? window.innerWidth : storedWidth;
+    storedWidth = Math.max(
+      Math.min(window.innerWidth, storedWidth),
+      MIN_VIEWPORT_WIDTH
+    );
+    return storedWidth;
   }
 
   saveWidth() {
@@ -274,12 +283,23 @@ class ViewportResizer {
     });
   }
 
+  syncTitle() {
+    const iframeDocument =
+      this.iframeEl.contentDocument || this.iframeEl.contentWindow.document;
+    const iframeTitle = iframeDocument.title;
+
+    if (document.title !== iframeTitle) {
+      document.title = iframeTitle;
+    }
+  }
+
   updateWrapperUrl() {
     try {
       const iframeUrl = this.iframeEl.contentWindow.location.href;
       if (window.location.href !== iframeUrl) {
         history.replaceState(null, '', iframeUrl);
       }
+      this.syncTitle();
     } catch (e) {}
   }
 }
@@ -294,5 +314,10 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     } else {
       viewportResizer = new ViewportResizer();
     }
+
+    chrome.runtime.sendMessage({
+      action: 'update_icon',
+      isActive: !!viewportResizer,
+    });
   }
 });
