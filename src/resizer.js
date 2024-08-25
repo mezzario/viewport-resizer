@@ -12,6 +12,8 @@ class ViewportResizer {
     this.initialWidth = 0;
     this.currentWidth = this.getStoredWidth();
 
+    this.disableSelection(document.body);
+
     this.addIframe();
     this.addBar();
     this.addWidthLabel();
@@ -55,6 +57,7 @@ class ViewportResizer {
     this.barEl.style.margin = '0';
     this.barEl.style.padding = '0';
     this.barEl.style.borderRadius = '0';
+    this.disableSelection(this.barEl);
 
     const totalLineWidth = GRIP_LINE_WIDTH * GRIP_LINES_COUNT;
     const lineGap =
@@ -72,6 +75,7 @@ class ViewportResizer {
       line.style.left = `${
         (RESIZE_BAR_WIDTH - totalWidth) / 2 + i * (GRIP_LINE_WIDTH + lineGap)
       }px`;
+      this.disableSelection(line);
       this.barEl.appendChild(line);
     }
 
@@ -89,10 +93,12 @@ class ViewportResizer {
 
     this.leftCoverEl = document.createElement('div');
     Object.assign(this.leftCoverEl.style, coverStyle, {left: '0'});
+    this.disableSelection(this.leftCoverEl);
     document.documentElement.appendChild(this.leftCoverEl);
 
     this.rightCoverEl = document.createElement('div');
     Object.assign(this.rightCoverEl.style, coverStyle, {right: '0'});
+    this.disableSelection(this.rightCoverEl);
     document.documentElement.appendChild(this.rightCoverEl);
   }
 
@@ -105,6 +111,8 @@ class ViewportResizer {
     this.overlayEl.style.height = '100vh';
     this.overlayEl.style.display = 'none';
     this.overlayEl.style.zIndex = '9999';
+    this.disableSelection(this.overlayEl);
+
     document.documentElement.appendChild(this.overlayEl);
   }
 
@@ -121,9 +129,7 @@ class ViewportResizer {
     this.widthLabelEl.style.fontFamily = 'monospace';
     this.widthLabelEl.style.display = 'none';
     this.widthLabelEl.style.zIndex = '10001';
-    this.widthLabelEl.style.userSelect = 'none';
-    this.widthLabelEl.style.webkitUserSelect = 'none';
-    this.widthLabelEl.style.msUserSelect = 'none';
+    this.disableSelection(this.widthLabelEl);
 
     document.documentElement.appendChild(this.widthLabelEl);
   }
@@ -302,22 +308,39 @@ class ViewportResizer {
       this.syncTitle();
     } catch (e) {}
   }
+
+  disableSelection(el) {
+    el.style.userSelect = 'none';
+    el.style.webkitUserSelect = 'none';
+    el.style.msUserSelect = 'none';
+  }
 }
 
 let viewportResizer = null;
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  if (request.action === 'toggle_resizer') {
-    if (viewportResizer) {
-      viewportResizer.deactivate();
-      viewportResizer = null;
-    } else {
-      viewportResizer = new ViewportResizer();
-    }
-
-    chrome.runtime.sendMessage({
-      action: 'update_icon',
-      isActive: !!viewportResizer,
-    });
+  switch (request.action) {
+    case 'toggle_resizer':
+      if (viewportResizer) {
+        viewportResizer.deactivate();
+        viewportResizer = null;
+      } else {
+        viewportResizer = new ViewportResizer();
+      }
+      chrome.runtime.sendMessage({
+        action: 'update_icon',
+        isActive: !!viewportResizer,
+      });
+      break;
+    default:
+      break;
   }
+});
+
+// Add this new event listener
+window.addEventListener('load', function () {
+  chrome.runtime.sendMessage({
+    action: 'update_icon',
+    isActive: !!viewportResizer,
+  });
 });
