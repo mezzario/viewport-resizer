@@ -1,42 +1,31 @@
 chrome.action.onClicked.addListener((tab) => {
-  if (
-    tab.url.startsWith('chrome://') ||
-    tab.url.startsWith('chrome-extension://') ||
-    tab.url.includes('chrome.google.com/webstore')
-  ) {
-    updateActionIcon(tab.id, 'icon_inactive');
-    return;
-  }
-
-  chrome.tabs.sendMessage(tab.id, {action: 'toggle_resizer'}).catch((error) => {
-    console.error('Error sending message:', error);
-    updateActionIcon(tab.id, 'icon_inactive');
-  });
+  sendMessage(tab.id, 'toggle_resizer');
 });
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
-  updateActionIcon(activeInfo.tabId);
+  sendMessage(activeInfo.tabId, 'trigger_update_action_icon');
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete') {
-    updateActionIcon(tabId);
+    sendMessage(tabId, 'trigger_update_action_icon');
   }
 });
 
-const tabStates = new Map();
+function sendMessage(tabId, action) {
+  chrome.tabs.sendMessage(tabId, {action}).catch((error) => {
+    updateActionIcon(tabId, false);
+  });
+}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'update_icon') {
-    tabStates.set(sender.tab.id, request.isActive);
-    updateActionIcon(sender.tab.id);
+  if (request.action === 'update_action_icon') {
+    updateActionIcon(sender.tab.id, request.isActive);
   }
 });
 
-function updateActionIcon(tabId, iconName = null) {
-  if (!iconName) {
-    iconName = !!tabStates.get(tabId) ? 'icon_active' : 'icon_inactive';
-  }
+function updateActionIcon(tabId, isActive) {
+  const iconName = isActive ? 'icon_active' : 'icon_inactive';
   chrome.action.setIcon({
     path: {
       16: `assets/${iconName}_16.png`,

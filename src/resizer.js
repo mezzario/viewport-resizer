@@ -327,20 +327,21 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
       } else {
         viewportResizer = new ViewportResizer();
       }
-      chrome.runtime.sendMessage({
-        action: 'update_icon',
-        isActive: !!viewportResizer,
-      });
+      triggerUpdateActionIcon();
+      break;
+    case 'trigger_update_action_icon':
+      triggerUpdateActionIcon();
       break;
     default:
       break;
   }
 });
 
-// Add this new event listener
-window.addEventListener('load', function () {
+function triggerUpdateActionIcon() {
   chrome.runtime.sendMessage({
-    action: 'update_icon',
+    action: 'update_action_icon',
     isActive: !!viewportResizer,
   });
-});
+}
+
+window.addEventListener('load', triggerUpdateActionIcon);
