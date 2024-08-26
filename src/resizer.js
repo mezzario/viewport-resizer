@@ -6,15 +6,19 @@ const GRIP_LINE_HEIGHT = 30;
 const GRIP_LINE_WIDTH = 1;
 
 class ViewportResizer {
-  constructor() {
+  constructor(iframeEl) {
+    this.iframeEl = iframeEl;
     this.isResizing = false;
     this.initialX = 0;
     this.initialWidth = 0;
     this.currentWidth = this.getStoredWidth();
 
+    this.initialize();
+  }
+
+  initialize() {
     this.disableSelection(document.body);
 
-    this.addIframe();
     this.addBar();
     this.addWidthLabel();
     this.addCoverElements();
@@ -23,22 +27,6 @@ class ViewportResizer {
     this.addEventListeners();
     this.setupIframeNavigation();
     this.resizeViewport();
-  }
-
-  addIframe() {
-    // Create iframe
-    this.iframeEl = document.createElement('iframe');
-    this.iframeEl.style.position = 'fixed';
-    this.iframeEl.style.top = '0';
-    this.iframeEl.style.left = '50%';
-    this.iframeEl.style.transform = 'translateX(-50%)';
-    this.iframeEl.style.height = '100vh';
-    this.iframeEl.style.border = 'none';
-    this.iframeEl.src = window.location.href;
-
-    // Replace entire HTML content with the iframe
-    document.documentElement.innerHTML = '';
-    document.documentElement.appendChild(this.iframeEl);
   }
 
   addBar() {
@@ -325,9 +313,12 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
         viewportResizer.deactivate();
         viewportResizer = null;
       } else {
-        viewportResizer = new ViewportResizer();
+        checkIframeSupport((iframeEl) => {
+          if (!iframeEl) return;
+          viewportResizer = new ViewportResizer(iframeEl);
+          triggerUpdateActionIcon();
+        });
       }
-      triggerUpdateActionIcon();
       break;
     case 'trigger_update_action_icon':
       triggerUpdateActionIcon();
@@ -336,6 +327,73 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
       break;
   }
 });
+
+function checkIframeSupport(callback) {
+  const iframeEl = document.createElement('iframe');
+  iframeEl.style.display = 'none';
+  document.body.appendChild(iframeEl);
+
+  iframeEl.addEventListener('load', () => {
+    handleIframeLoad(iframeEl, callback);
+  });
+
+  iframeEl.addEventListener('error', () => {
+    handleIframeError(iframeEl, callback);
+  });
+
+  // Try to load the current page in the iframe.
+  iframeEl.src = window.location.href;
+}
+
+function handleIframeLoad(iframeEl, callback) {
+  try {
+    // Try to access the iframe's content.
+    const iframeDoc =
+      iframeEl.contentDocument || iframeEl.contentWindow.document;
+
+    // If we can access the content, it's loaded successfully.
+    if (iframeDoc && iframeDoc.body) {
+      handleIframeLoadSuccess(iframeEl, callback);
+    } else {
+      throw new Error('Unable to access iframe content');
+    }
+  } catch (error) {
+    // If we can't access the content, it's blocked.
+    handleIframeError(iframeEl, callback, error);
+  }
+}
+
+function removeChildrenExcept(parentEl, keepEl) {
+  let childrenEls = Array.from(parentEl.childNodes);
+  for (let childEl of childrenEls) {
+    if (childEl !== keepEl) {
+      parentEl.removeChild(childEl);
+    }
+  }
+}
+
+function handleIframeLoadSuccess(iframeEl, callback) {
+  removeChildrenExcept(document.documentElement, document.body);
+  removeChildrenExcept(document.body, iframeEl);
+
+  iframeEl.style.display = '';
+  iframeEl.style.position = 'fixed';
+  iframeEl.style.top = '0';
+  iframeEl.style.left = '50%';
+  iframeEl.style.transform = 'translateX(-50%)';
+  iframeEl.style.height = '100vh';
+  iframeEl.style.border = 'none';
+
+  callback(iframeEl);
+}
+
+function handleIframeError(iframeEl, callback, error) {
+  document.body.removeChild(iframeEl);
+  alert(
+    'This website cannot be displayed in an iframe due to security restrictions.'
+  );
+  callback(null);
+}
 
 function triggerUpdateActionIcon() {
   chrome.runtime.sendMessage({
