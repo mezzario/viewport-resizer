@@ -4,7 +4,7 @@
   "version": "1.0",
   "description": "Resize the website's viewport horizontally without resizing the browser window",
   "author": "Eugene Baranchuk <vencedor@gmail.com>",
-  "permissions": ["activeTab", "tabs"],
+  "permissions": ["tabs"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

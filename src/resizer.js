@@ -233,7 +233,6 @@
   function handleWindowMouseUp() {
     isResizing = false;
     overlayEl.style.display = 'none';
-    handleBarMouseLeave();
 
     const barRight = parseInt(barEl.style.right);
     if (barRight < RESIZE_BAR_SNAP_DISTANCE) {
