@@ -1,51 +1,123 @@
-const RESIZE_BAR_WIDTH = 14;
-const RESIZE_BAR_SNAP_DISTANCE = 10;
-const MIN_VIEWPORT_WIDTH = 50;
-const GRIP_LINES_COUNT = 2;
-const GRIP_LINE_HEIGHT = 30;
-const GRIP_LINE_WIDTH = 1;
+(function () {
+  const RESIZE_BAR_WIDTH = 14;
+  const RESIZE_BAR_SNAP_DISTANCE = 10;
+  const MIN_VIEWPORT_WIDTH = 50;
+  const GRIP_LINES_COUNT = 2;
+  const GRIP_LINE_HEIGHT = 30;
+  const GRIP_LINE_WIDTH = 1;
 
-class ViewportResizer {
-  constructor(iframeEl) {
-    this.iframeEl = iframeEl;
-    this.isResizing = false;
-    this.initialX = 0;
-    this.initialWidth = 0;
-    this.currentWidth = this.getStoredWidth();
+  let isActive = false;
+  let iframeEl, isResizing, initialX, initialWidth, currentWidth;
+  let barEl, leftCoverEl, rightCoverEl, overlayEl, widthLabelEl;
 
-    this.initialize();
+  function checkIframeSupport(callback) {
+    const iframeEl = document.createElement('iframe');
+    iframeEl.style.display = 'none';
+    document.body.appendChild(iframeEl);
+
+    iframeEl.addEventListener('load', () => {
+      handleIframeLoad(iframeEl, callback);
+    });
+
+    iframeEl.addEventListener('error', () => {
+      handleIframeError(iframeEl, callback);
+    });
+
+    // Try to load the current page in the iframe.
+    iframeEl.src = window.location.href;
   }
 
-  initialize() {
-    this.disableSelection(document.body);
+  function handleIframeLoad(iframeEl, callback) {
+    try {
+      // Try to access the iframe's content.
+      const iframeDoc =
+        iframeEl.contentDocument || iframeEl.contentWindow.document;
 
-    this.addBar();
-    this.addWidthLabel();
-    this.addCoverElements();
-    this.addOverlay();
-
-    this.addEventListeners();
-    this.setupIframeNavigation();
-    this.resizeViewport();
+      // If we can access the content, it's loaded successfully.
+      if (iframeDoc && iframeDoc.body) {
+        handleIframeLoadSuccess(iframeEl, callback);
+      } else {
+        throw new Error('Unable to access iframe content.');
+      }
+    } catch (error) {
+      // If we can't access the content, it's blocked.
+      handleIframeError(iframeEl, callback, error);
+    }
   }
 
-  addBar() {
-    this.barEl = document.createElement('div');
-    this.barEl.className = 'viewport-resizer';
-    this.barEl.style.position = 'fixed';
-    this.barEl.style.right = `${
-      window.innerWidth - (window.innerWidth / 2 + this.currentWidth / 2)
+  function removeChildrenExcept(parentEl, keepEl) {
+    let childrenEls = Array.from(parentEl.childNodes);
+    for (let childEl of childrenEls) {
+      if (childEl !== keepEl) {
+        parentEl.removeChild(childEl);
+      }
+    }
+  }
+
+  function handleIframeLoadSuccess(iframeEl, callback) {
+    removeChildrenExcept(document.documentElement, document.body);
+    removeChildrenExcept(document.body, iframeEl);
+
+    iframeEl.style.display = '';
+    iframeEl.style.position = 'fixed';
+    iframeEl.style.top = '0';
+    iframeEl.style.left = '50%';
+    iframeEl.style.transform = 'translateX(-50%)';
+    iframeEl.style.height = '100vh';
+    iframeEl.style.border = 'none';
+
+    callback(iframeEl);
+  }
+
+  function handleIframeError(iframeEl, callback, error) {
+    document.body.removeChild(iframeEl);
+    alert(
+      'Viewport Resizer: ' +
+        'this website cannot be resized due to security restrictions.'
+    );
+    callback(null);
+  }
+
+  function initialize(iframe) {
+    iframeEl = iframe;
+    isResizing = false;
+    initialX = 0;
+    initialWidth = 0;
+    currentWidth = getStoredWidth();
+
+    disableSelection(document.body);
+
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('resize', handleWindowResize);
+
+    addBar();
+    addWidthLabel();
+    addCoverElements();
+    addOverlay();
+
+    setupIframeNavigation();
+    resizeViewport();
+  }
+
+  function addBar() {
+    barEl = document.createElement('div');
+    barEl.className = 'viewport-resizer';
+    barEl.style.position = 'fixed';
+    barEl.style.right = `${
+      window.innerWidth - (window.innerWidth / 2 + currentWidth / 2)
     }px`;
-    this.barEl.style.top = '0';
-    this.barEl.style.width = `${RESIZE_BAR_WIDTH}px`;
-    this.barEl.style.height = '100vh';
-    this.barEl.style.cursor = 'ew-resize';
-    this.barEl.style.zIndex = '10000';
-    this.barEl.style.backgroundColor = 'rgba(128, 128, 128, 0.7)';
-    this.barEl.style.margin = '0';
-    this.barEl.style.padding = '0';
-    this.barEl.style.borderRadius = '0';
-    this.disableSelection(this.barEl);
+    barEl.style.top = '0';
+    barEl.style.width = `${RESIZE_BAR_WIDTH}px`;
+    barEl.style.height = '100vh';
+    barEl.style.cursor = 'ew-resize';
+    barEl.style.zIndex = '10000';
+    barEl.style.backgroundColor = 'rgba(128, 128, 128, 0.7)';
+    barEl.style.margin = '0';
+    barEl.style.padding = '0';
+    barEl.style.borderRadius = '0';
+
+    disableSelection(barEl);
 
     const totalLineWidth = GRIP_LINE_WIDTH * GRIP_LINES_COUNT;
     const lineGap =
@@ -63,14 +135,19 @@ class ViewportResizer {
       line.style.left = `${
         (RESIZE_BAR_WIDTH - totalWidth) / 2 + i * (GRIP_LINE_WIDTH + lineGap)
       }px`;
-      this.disableSelection(line);
-      this.barEl.appendChild(line);
+      disableSelection(line);
+      barEl.appendChild(line);
     }
 
-    document.documentElement.appendChild(this.barEl);
+    barEl.addEventListener('mousedown', handleBarMouseDown);
+    barEl.addEventListener('mouseenter', handleBarMouseEnter);
+    barEl.addEventListener('mouseleave', handleBarMouseLeave);
+    barEl.addEventListener('dblclick', handleBarDoubleClick);
+
+    document.documentElement.appendChild(barEl);
   }
 
-  addCoverElements() {
+  function addCoverElements() {
     const coverStyle = {
       position: 'fixed',
       top: '0',
@@ -79,155 +156,130 @@ class ViewportResizer {
       zIndex: '9998',
     };
 
-    this.leftCoverEl = document.createElement('div');
-    Object.assign(this.leftCoverEl.style, coverStyle, {left: '0'});
-    this.disableSelection(this.leftCoverEl);
-    document.documentElement.appendChild(this.leftCoverEl);
+    leftCoverEl = document.createElement('div');
+    Object.assign(leftCoverEl.style, coverStyle, {left: '0'});
+    disableSelection(leftCoverEl);
+    document.documentElement.appendChild(leftCoverEl);
 
-    this.rightCoverEl = document.createElement('div');
-    Object.assign(this.rightCoverEl.style, coverStyle, {right: '0'});
-    this.disableSelection(this.rightCoverEl);
-    document.documentElement.appendChild(this.rightCoverEl);
+    rightCoverEl = document.createElement('div');
+    Object.assign(rightCoverEl.style, coverStyle, {right: '0'});
+    disableSelection(rightCoverEl);
+    document.documentElement.appendChild(rightCoverEl);
   }
 
-  addOverlay() {
-    this.overlayEl = document.createElement('div');
-    this.overlayEl.style.position = 'fixed';
-    this.overlayEl.style.top = '0';
-    this.overlayEl.style.left = '50%';
-    this.overlayEl.style.transform = 'translateX(-50%)';
-    this.overlayEl.style.height = '100vh';
-    this.overlayEl.style.display = 'none';
-    this.overlayEl.style.zIndex = '9999';
-    this.disableSelection(this.overlayEl);
+  function addOverlay() {
+    overlayEl = document.createElement('div');
+    overlayEl.style.position = 'fixed';
+    overlayEl.style.top = '0';
+    overlayEl.style.left = '50%';
+    overlayEl.style.transform = 'translateX(-50%)';
+    overlayEl.style.height = '100vh';
+    overlayEl.style.display = 'none';
+    overlayEl.style.zIndex = '9999';
+    disableSelection(overlayEl);
 
-    document.documentElement.appendChild(this.overlayEl);
+    document.documentElement.appendChild(overlayEl);
   }
 
-  addWidthLabel() {
-    this.widthLabelEl = document.createElement('div');
-    this.widthLabelEl.style.position = 'fixed';
-    this.widthLabelEl.style.top = '10px';
-    this.widthLabelEl.style.right = '10px';
-    this.widthLabelEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-    this.widthLabelEl.style.color = '#fff';
-    this.widthLabelEl.style.padding = '5px 10px';
-    this.widthLabelEl.style.borderRadius = '5px';
-    this.widthLabelEl.style.fontSize = '12px';
-    this.widthLabelEl.style.fontFamily = 'monospace';
-    this.widthLabelEl.style.display = 'none';
-    this.widthLabelEl.style.zIndex = '10001';
-    this.disableSelection(this.widthLabelEl);
+  function addWidthLabel() {
+    widthLabelEl = document.createElement('div');
+    widthLabelEl.style.position = 'fixed';
+    widthLabelEl.style.top = '10px';
+    widthLabelEl.style.right = '10px';
+    widthLabelEl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    widthLabelEl.style.color = '#fff';
+    widthLabelEl.style.padding = '5px 10px';
+    widthLabelEl.style.borderRadius = '5px';
+    widthLabelEl.style.fontSize = '12px';
+    widthLabelEl.style.fontFamily = 'monospace';
+    widthLabelEl.style.display = 'none';
+    widthLabelEl.style.zIndex = '10001';
+    disableSelection(widthLabelEl);
 
-    document.documentElement.appendChild(this.widthLabelEl);
+    document.documentElement.appendChild(widthLabelEl);
   }
 
-  addEventListeners() {
-    this.barEl.addEventListener('mousedown', this.handleBarMouseDown);
-    this.barEl.addEventListener('mouseenter', this.handleBarMouseEnter);
-    this.barEl.addEventListener('mouseleave', this.handleBarMouseLeave);
-    this.barEl.addEventListener('dblclick', this.handleBarDoubleClick);
+  function resizeViewport(width = currentWidth) {
+    currentWidth = width;
 
-    window.addEventListener('mousemove', this.handleWindowMouseMove);
-    window.addEventListener('mouseup', this.handleWindowMouseUp);
-    window.addEventListener('resize', this.handleWindowResize);
-  }
-
-  removeEventListeners() {
-    this.barEl.removeEventListener('mousedown', this.handleBarMouseDown);
-    this.barEl.removeEventListener('mouseenter', this.handleBarMouseEnter);
-    this.barEl.removeEventListener('mouseleave', this.handleBarMouseLeave);
-    this.barEl.removeEventListener('dblclick', this.handleBarDoubleClick);
-
-    window.removeEventListener('mousemove', this.handleWindowMouseMove);
-    window.removeEventListener('mouseup', this.handleWindowMouseUp);
-    window.removeEventListener('resize', this.handleWindowResize);
-  }
-
-  resizeViewport = (width = this.currentWidth) => {
-    this.currentWidth = width;
-
-    this.iframeEl.style.width = `${this.currentWidth}px`;
-    this.overlayEl.style.width = `${this.currentWidth}px`;
-    this.barEl.style.right = `${
-      window.innerWidth - (window.innerWidth / 2 + this.currentWidth / 2)
+    iframeEl.style.width = `${currentWidth}px`;
+    overlayEl.style.width = `${currentWidth}px`;
+    barEl.style.right = `${
+      window.innerWidth - (window.innerWidth / 2 + currentWidth / 2)
     }px`;
 
-    this.updateCoverElements();
-    this.updateWidthLabel();
-  };
+    updateCoverElements();
+    updateWidthLabel();
+  }
 
-  handleBarMouseDown = (e) => {
-    this.isResizing = true;
-    this.initialX = e.clientX;
-    this.initialWidth = this.currentWidth;
-    this.overlayEl.style.display = 'block';
-    this.handleBarMouseEnter();
-  };
+  function handleBarMouseDown(e) {
+    isResizing = true;
+    initialX = e.clientX;
+    initialWidth = currentWidth;
+    overlayEl.style.display = 'block';
+    handleBarMouseEnter();
+  }
 
-  handleWindowMouseMove = (e) => {
-    if (!this.isResizing) return;
+  function handleWindowMouseMove(e) {
+    if (!isResizing) return;
 
-    this.resizeViewport(
+    resizeViewport(
       Math.max(
         MIN_VIEWPORT_WIDTH,
-        Math.min(
-          this.initialWidth + (e.clientX - this.initialX) * 2,
-          window.innerWidth
-        )
+        Math.min(initialWidth + (e.clientX - initialX) * 2, window.innerWidth)
       )
     );
-  };
+  }
 
-  handleWindowMouseUp = () => {
-    this.isResizing = false;
-    this.overlayEl.style.display = 'none';
-    this.handleBarMouseLeave();
+  function handleWindowMouseUp() {
+    isResizing = false;
+    overlayEl.style.display = 'none';
+    handleBarMouseLeave();
 
-    const barRight = parseInt(this.barEl.style.right);
+    const barRight = parseInt(barEl.style.right);
     if (barRight < RESIZE_BAR_SNAP_DISTANCE) {
-      this.resizeViewport(window.innerWidth);
+      resizeViewport(window.innerWidth);
     }
-    this.saveWidth();
+    saveWidth();
 
     // Update initial values for the next resize.
-    this.initialWidth = this.currentWidth;
-    this.initialX = window.innerWidth - barRight - RESIZE_BAR_WIDTH / 2;
-  };
+    initialWidth = currentWidth;
+    initialX = window.innerWidth - barRight - RESIZE_BAR_WIDTH / 2;
+  }
 
-  updateCoverElements = () => {
-    const coverWidth = Math.max(0, (window.innerWidth - this.currentWidth) / 2);
-    this.leftCoverEl.style.width = `${coverWidth}px`;
-    this.rightCoverEl.style.width = `${coverWidth}px`;
-  };
+  function updateCoverElements() {
+    const coverWidth = Math.max(0, (window.innerWidth - currentWidth) / 2);
+    leftCoverEl.style.width = `${coverWidth}px`;
+    rightCoverEl.style.width = `${coverWidth}px`;
+  }
 
-  updateWidthLabel = () => {
-    this.widthLabelEl.textContent = `${Math.round(this.currentWidth)}px`;
-    this.widthLabelEl.style.right = `${
+  function updateWidthLabel() {
+    widthLabelEl.textContent = `${Math.round(currentWidth)}px`;
+    widthLabelEl.style.right = `${
       window.innerWidth -
-      (window.innerWidth / 2 + this.currentWidth / 2) +
+      (window.innerWidth / 2 + currentWidth / 2) +
       RESIZE_BAR_WIDTH +
       10
     }px`;
-  };
+  }
 
-  handleBarMouseEnter = () => {
-    if (this.isResizing) return;
-    this.widthLabelEl.style.display = 'block';
-    this.updateWidthLabel();
-  };
+  function handleBarMouseEnter() {
+    if (isResizing) return;
+    widthLabelEl.style.display = 'block';
+    updateWidthLabel();
+  }
 
-  handleBarMouseLeave = () => {
-    if (this.isResizing) return;
-    this.widthLabelEl.style.display = 'none';
-  };
+  function handleBarMouseLeave() {
+    if (isResizing) return;
+    widthLabelEl.style.display = 'none';
+  }
 
-  getStorageKey(paramName) {
+  function getStorageKey(paramName) {
     return `vpResExt_tgIm7_${paramName}`;
   }
 
-  getStoredWidth() {
-    const storedWidthStr = localStorage.getItem(this.getStorageKey('width'));
+  function getStoredWidth() {
+    const storedWidthStr = localStorage.getItem(getStorageKey('width'));
     let storedWidth = storedWidthStr
       ? parseInt(storedWidthStr)
       : window.innerWidth;
@@ -239,47 +291,45 @@ class ViewportResizer {
     return storedWidth;
   }
 
-  saveWidth() {
-    const itemKey = this.getStorageKey('width');
-    if (window.innerWidth !== this.currentWidth) {
-      localStorage.setItem(itemKey, this.currentWidth);
+  function saveWidth() {
+    const itemKey = getStorageKey('width');
+    if (window.innerWidth !== currentWidth) {
+      localStorage.setItem(itemKey, currentWidth);
     } else {
       localStorage.removeItem(itemKey);
     }
   }
 
-  handleWindowResize = () => {
-    this.resizeViewport(Math.min(this.getStoredWidth(), window.innerWidth));
-  };
+  function handleWindowResize() {
+    resizeViewport(Math.min(getStoredWidth(), window.innerWidth));
+  }
 
-  handleBarDoubleClick = () => {
-    this.resizeViewport(window.innerWidth);
-    this.saveWidth();
-  };
+  function handleBarDoubleClick() {
+    resizeViewport(window.innerWidth);
+    saveWidth();
+  }
 
-  deactivate() {
-    this.removeEventListeners();
-
-    // Redirect to the current URL of the iframe.
-    window.location.href = this.iframeEl.contentWindow.location.href;
+  function deactivate() {
+    isActive = false;
+    window.location.href = iframeEl.contentWindow.location.href;
     window.location.reload();
   }
 
-  setupIframeNavigation() {
+  function setupIframeNavigation() {
     // Handle full page loads.
-    this.iframeEl.addEventListener('load', () => {
-      this.updateWrapperUrl();
+    iframeEl.addEventListener('load', () => {
+      updateWrapperUrl();
     });
 
     // Handle hash changes.
-    this.iframeEl.contentWindow.addEventListener('hashchange', () => {
-      this.updateWrapperUrl();
+    iframeEl.contentWindow.addEventListener('hashchange', () => {
+      updateWrapperUrl();
     });
   }
 
-  syncTitle() {
+  function syncTitle() {
     const iframeDocument =
-      this.iframeEl.contentDocument || this.iframeEl.contentWindow.document;
+      iframeEl.contentDocument || iframeEl.contentWindow.document;
     const iframeTitle = iframeDocument.title;
 
     if (document.title !== iframeTitle) {
@@ -287,119 +337,54 @@ class ViewportResizer {
     }
   }
 
-  updateWrapperUrl() {
+  function updateWrapperUrl() {
     try {
-      const iframeUrl = this.iframeEl.contentWindow.location.href;
+      const iframeUrl = iframeEl.contentWindow.location.href;
       if (window.location.href !== iframeUrl) {
         history.replaceState(null, '', iframeUrl);
       }
-      this.syncTitle();
+      syncTitle();
     } catch (e) {}
   }
 
-  disableSelection(el) {
+  function disableSelection(el) {
     el.style.userSelect = 'none';
     el.style.webkitUserSelect = 'none';
     el.style.msUserSelect = 'none';
   }
-}
 
-let viewportResizer = null;
-
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  switch (request.action) {
-    case 'toggle_resizer':
-      if (viewportResizer) {
-        viewportResizer.deactivate();
-        viewportResizer = null;
-      } else {
-        checkIframeSupport((iframeEl) => {
-          if (!iframeEl) return;
-          viewportResizer = new ViewportResizer(iframeEl);
-          triggerUpdateActionIcon();
-        });
-      }
-      break;
-    case 'trigger_update_action_icon':
-      triggerUpdateActionIcon();
-      break;
-    default:
-      break;
+  function triggerUpdateActionIcon() {
+    chrome.runtime.sendMessage({
+      action: 'update_action_icon',
+      isActive,
+    });
   }
-});
 
-function checkIframeSupport(callback) {
-  const iframeEl = document.createElement('iframe');
-  iframeEl.style.display = 'none';
-  document.body.appendChild(iframeEl);
-
-  iframeEl.addEventListener('load', () => {
-    handleIframeLoad(iframeEl, callback);
-  });
-
-  iframeEl.addEventListener('error', () => {
-    handleIframeError(iframeEl, callback);
-  });
-
-  // Try to load the current page in the iframe.
-  iframeEl.src = window.location.href;
-}
-
-function handleIframeLoad(iframeEl, callback) {
-  try {
-    // Try to access the iframe's content.
-    const iframeDoc =
-      iframeEl.contentDocument || iframeEl.contentWindow.document;
-
-    // If we can access the content, it's loaded successfully.
-    if (iframeDoc && iframeDoc.body) {
-      handleIframeLoadSuccess(iframeEl, callback);
-    } else {
-      throw new Error('Unable to access iframe content');
+  chrome.runtime.onMessage.addListener(function (
+    request,
+    sender,
+    sendResponse
+  ) {
+    switch (request.action) {
+      case 'toggle_resizer':
+        if (isActive) {
+          deactivate();
+        } else {
+          checkIframeSupport((iframeEl) => {
+            if (!iframeEl) return;
+            initialize(iframeEl);
+            isActive = true;
+            triggerUpdateActionIcon();
+          });
+        }
+        break;
+      case 'trigger_update_action_icon':
+        triggerUpdateActionIcon();
+        break;
+      default:
+        break;
     }
-  } catch (error) {
-    // If we can't access the content, it's blocked.
-    handleIframeError(iframeEl, callback, error);
-  }
-}
-
-function removeChildrenExcept(parentEl, keepEl) {
-  let childrenEls = Array.from(parentEl.childNodes);
-  for (let childEl of childrenEls) {
-    if (childEl !== keepEl) {
-      parentEl.removeChild(childEl);
-    }
-  }
-}
-
-function handleIframeLoadSuccess(iframeEl, callback) {
-  removeChildrenExcept(document.documentElement, document.body);
-  removeChildrenExcept(document.body, iframeEl);
-
-  iframeEl.style.display = '';
-  iframeEl.style.position = 'fixed';
-  iframeEl.style.top = '0';
-  iframeEl.style.left = '50%';
-  iframeEl.style.transform = 'translateX(-50%)';
-  iframeEl.style.height = '100vh';
-  iframeEl.style.border = 'none';
-
-  callback(iframeEl);
-}
-
-function handleIframeError(iframeEl, callback, error) {
-  document.body.removeChild(iframeEl);
-  alert(
-    'This website cannot be displayed in an iframe due to security restrictions.'
-  );
-  callback(null);
-}
-
-function triggerUpdateActionIcon() {
-  chrome.runtime.sendMessage({
-    action: 'update_action_icon',
-    isActive: !!viewportResizer,
   });
-}
 
-window.addEventListener('load', triggerUpdateActionIcon);
+  window.addEventListener('load', triggerUpdateActionIcon);
+})();
