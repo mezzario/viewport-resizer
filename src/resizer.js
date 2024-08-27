@@ -116,7 +116,6 @@
     barEl.style.margin = '0';
     barEl.style.padding = '0';
     barEl.style.borderRadius = '0';
-
     disableSelection(barEl);
 
     const totalLineWidth = GRIP_LINE_WIDTH * GRIP_LINES_COUNT;
@@ -354,10 +353,7 @@
   }
 
   function triggerUpdateActionIcon() {
-    chrome.runtime.sendMessage({
-      action: 'update_action_icon',
-      isActive,
-    });
+    chrome.runtime.sendMessage({action: 'update_action_icon', isActive});
   }
 
   chrome.runtime.onMessage.addListener(function (

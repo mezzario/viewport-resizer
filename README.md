@@ -6,6 +6,8 @@ Viewport Resizer is a Chrome extension designed for web developers and designers
 
 ![](src/assets/demo_pg.gif)
 
+![](src/assets/demo.png)
+
 ## Key Features
 
 - Easily resize the viewport by dragging a resizable bar
