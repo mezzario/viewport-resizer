@@ -4,29 +4,17 @@
   "version": "1.0",
   "description": "Resize the website's viewport horizontally without resizing the browser window",
   "author": "Eugene Baranchuk <vencedor@gmail.com>",
-  "permissions": ["tabs"],
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["src/resizer.js"]
-    }
-  ],
-  "icons": {
-    "16": "src/assets/icon_active_16.png",
-    "32": "src/assets/icon_active_32.png",
-    "48": "src/assets/icon_active_48.png",
-    "128": "src/assets/icon_active_128.png"
-  },
-  "action": {
-    "default_icon": {
-      "16": "src/assets/icon_inactive_16.png",
-      "32": "src/assets/icon_inactive_32.png",
-      "48": "src/assets/icon_inactive_48.png",
-      "128": "src/assets/icon_inactive_128.png"
-    },
-    "default_title": "Viewport Resizer"
-  },
+  "permissions": ["activeTab", "scripting"],
   "background": {
     "service_worker": "src/background.js"
+  },
+  "icons": {
+    "16": "src/assets/icon_16.png",
+    "32": "src/assets/icon_32.png",
+    "48": "src/assets/icon_48.png",
+    "128": "src/assets/icon_128.png"
+  },
+  "action": {
+    "default_title": "Viewport Resizer"
   }
 }
