@@ -368,13 +368,13 @@ function toggleResizer() {
     el.style.msUserSelect = 'none';
   }
 
-  if (data.isActive) {
-    deactivate();
-  } else {
+  if (!data.isActive) {
     checkIframeSupport((iframeEl) => {
       if (iframeEl) {
         initialize(iframeEl);
       }
     });
+  } else {
+    deactivate();
   }
 }
